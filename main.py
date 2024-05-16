@@ -1,7 +1,10 @@
+import ast
 from typing import List, Dict
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from itertools import chain
+
+import pandas as pd
+
 
 class Action:
     def __init__(self, time: int, reward: str, host: str, keys: List[str]):
@@ -10,6 +13,13 @@ class Action:
         self.host = host
         self.keys = keys
 
+    def __str__(self):
+        return f"Action(time={self.time}, reward={self.reward}, host={self.host}, keys={self.keys})"
+
+    def __repr__(self):
+        return str(self)
+
+
 class NodeValue:
     def __init__(self, required_time: int, required_keys: List[str], required_hosts: List[str], host: str):
         self.required_time = required_time
@@ -17,12 +27,25 @@ class NodeValue:
         self.required_hosts = required_hosts
         self.host = host
 
+    def __str__(self):
+        return f"NodeValue(required_time={self.required_time}, required_keys={self.required_keys}, required_hosts={self.required_hosts}, host={self.host})"
+
+    def __repr__(self):
+        return str(self)
+
+
 class TreeNode:
     def __init__(self, value: NodeValue, parent=None):
         self.parent = parent
         self.value = value
         self.children = []
         self.level = parent.level + 1 if parent else -1
+
+    def __str__(self):
+        return f"TreeNode(value={self.value}, level={self.level})"
+
+    def __repr__(self):
+        return str(self)
 
     def copy(self, new_parent, depth):
         result = TreeNode(
@@ -43,7 +66,14 @@ class TreeNode:
         result.children = child_copy
         return result
 
+
 class RiskTree:
+    def __str__(self):
+        return f"RiskTree(root={self.root})"
+
+    def __repr__(self):
+        return str(self)
+
     max_depth = 20
 
     def __init__(self, root_value: NodeValue = None, root: TreeNode = None):
@@ -77,6 +107,7 @@ class RiskTree:
     def search(self, risk_object):
         return self.search_in_tree_dict[risk_object]
 
+
 def create_action_forest(actions: List[Action]) -> Dict[str, RiskTree]:
     forest = defaultdict(RiskTree)
     for action in actions:
@@ -87,6 +118,7 @@ def create_action_forest(actions: List[Action]) -> Dict[str, RiskTree]:
         forest[action.reward] = tree
     return forest
 
+
 def extend_action_forest(forest: Dict[str, RiskTree]) -> Dict[str, RiskTree]:
     for risk_tree in forest.values():
         for tree in risk_tree.search_in_forest_tree:
@@ -94,10 +126,12 @@ def extend_action_forest(forest: Dict[str, RiskTree]) -> Dict[str, RiskTree]:
             tree_copy.search_in_forest_tree = tree.search_in_forest_tree
     return forest
 
+
 def transform_action_forest_to_path_forest(forest: Dict[str, RiskTree]) -> Dict[str, RiskTree]:
     for risk_tree in forest.values():
         risk_tree.traverse(risk_tree.root, aggregate_from_parent)
     return forest
+
 
 def aggregate_from_parent(node: TreeNode):
     if not node.parent or not node.value:
@@ -110,13 +144,58 @@ def aggregate_from_parent(node: TreeNode):
     value.required_hosts.extend(parent_value.required_hosts)
     value.required_time += parent_value.required_time
 
+
 if __name__ == "__main__":
-    actions = [
-        Action(10, "reward1", "host1", ["key1"]),
-        Action(20, "reward2", "host2", ["key2"]),
-        Action(30, "reward3", "host3", ["key3"]),
-        # ...
-    ]
+    df = pd.read_csv("generated_network.csv")
+
+
+    def convert_to_list(column):
+        def safe_literal_eval(value):
+            if isinstance(value, str):
+                try:
+                    return ast.literal_eval(value)
+                except (ValueError, SyntaxError) as e:
+                    print(f"Error parsing value: {value} - {e}")
+                    return value
+            return value
+
+        return column.apply(safe_literal_eval)
+
+
+    # Convert the string representations of lists to actual lists
+    df['out_host'] = convert_to_list(df['out_host'])
+    df['key'] = convert_to_list(df['key'])
+    df['time'] = convert_to_list(df['time'])
+
+    # Group by target_host and aggregate the columns into lists
+    grouped = df.groupby(by='target_host').agg(lambda x: x.tolist()).reset_index()
+
+    # Convert the grouped DataFrame to a dictionary
+    result_dict = {}
+
+    for _, row in grouped.iterrows():
+        target_host = row['target_host']
+        out_hosts = row['out_host']
+        keys = row['key']
+        times = row['time']
+
+        result_dict[target_host] = [
+            {'out_host': out_host, 'key': key, 'time': time}
+            for out_host, key, time in zip(out_hosts, keys, times)
+        ]
+
+    actions = []
+
+    # Action(10, "reward1", "host1", ["key1"]),
+    # Action(20, "reward2", "host2", ["key2"]),
+    # Action(30, "reward3", "host3", ["key3"]),
+    # ...
+
+    for key, value in result_dict.items():
+        for val in value:
+            print(key, value, val)
+            action = Action(int(val['time']), key, val['out_host'], [val['key']])
+            actions.append(action)
 
     forest = create_action_forest(actions)
     forest = extend_action_forest(forest)

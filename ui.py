@@ -4,18 +4,20 @@ import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
 
+
 def gen_target(HOSTS, UZ):
     if np.random.randint(0, 2) == 0:
-        return f'H{np.random.randint(0, HOSTS)+1}'
+        return f'H{np.random.randint(0, HOSTS) + 1}'
     else:
         return f'K{np.random.randint(1, UZ)}'
+
 
 def generate_table(HOSTS, UZ, PreRecvCount, TimeMAX):
     table = pd.DataFrame(columns=['out_host', 'key', 'target_host', 'time'])
     ans = []
     for _ in range(PreRecvCount):
-        row = [f'H{np.random.randint(0, HOSTS)+1}', f'K{np.random.randint(0, UZ)}',
-               gen_target(HOSTS, UZ), np.random.randint(0, TimeMAX)+1]
+        row = [f'H{np.random.randint(0, HOSTS) + 1}', f'K{np.random.randint(0, UZ)}',
+               gen_target(HOSTS, UZ), np.random.randint(0, TimeMAX) + 1]
         while row[0] == row[2]:
             row[2] = gen_target(HOSTS, UZ)
         table.loc[len(table.index)] = row
@@ -23,6 +25,7 @@ def generate_table(HOSTS, UZ, PreRecvCount, TimeMAX):
     table.sort_values(by='out_host')
     table.to_csv("generated_network.csv", index=False)
     return table
+
 
 def create_graph(df):
     df.loc[:, 'time+key'] = df['time'].astype(str).map(lambda x: 'T: ' + x + ', ') + df['key']
@@ -46,6 +49,7 @@ def create_graph(df):
 
     plt.axis('off')
     return plt
+
 
 st.title("Генерация графа")
 HOSTS = st.number_input("Введите количество хостов:", min_value=1, value=10)
