@@ -162,15 +162,12 @@ if __name__ == "__main__":
         return column.apply(safe_literal_eval)
 
 
-    # Convert the string representations of lists to actual lists
     df['out_host'] = convert_to_list(df['out_host'])
     df['key'] = convert_to_list(df['key'])
     df['time'] = convert_to_list(df['time'])
 
-    # Group by target_host and aggregate the columns into lists
     grouped = df.groupby(by='target_host').agg(lambda x: x.tolist()).reset_index()
 
-    # Convert the grouped DataFrame to a dictionary
     result_dict = {}
 
     for _, row in grouped.iterrows():
